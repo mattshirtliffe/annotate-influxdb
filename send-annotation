@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # coding=utf-8
-
+import json
 import sys
+
+
 import click
 from influxdb import client as influxdb
 
@@ -13,25 +15,45 @@ from influxdb import client as influxdb
 @click.option('-U', '--user', 'user', default='root', help='username')
 @click.option('-P', '--pass', 'password', default='root', help='password')
 @click.option('-T', '--title', 'title', default='event', help='event title')
-@click.option('-t', '--tag', 'tags', multiple=True, help='event tags')
+@click.option('-t', '--tag', 'tags', help='event tags')
 @click.option('-D', '--description', 'text', help='event description')
-def cli(db_host, db_port, db_name, user, password, title, tags, text):
+@click.option('-M', '--measurement', 'measurement', help='measurement')
+def cli(db_host, db_port, db_name, user, password, title, tags, text, measurement):
+
+    """
+
+    python send-annotation -h "<your ip>" -d events -T "A test annotation" -t "test test,test2 test2" -D "this is test" -M "measurement"
+    -t with split on , and build json object from ' '
+
+    """
+
     if text is None:
         text = "\n".join([line for line in sys.stdin])
 
     try:
         db = influxdb.InfluxDBClient(db_host, db_port, user, password, db_name)
-        tags_field = str.join(';', tags)
+        db.create_database(db_name)
+
+        passing_tags = {}
+
+        if tags:
+            tags = tags.split(',')
+            for item in tags:
+                a = item.split(' ')
+                passing_tags[a[0]] = a[1]
+
         data = [{
-            'name': 'events',
-            'columns': ['tags', 'text', 'title'],
-            'points': [[tags_field, text, title]]
+            "measurement": measurement,
+            "tags":passing_tags,
+            "fields": {"text":text, "title":title}
         }]
+
+        print json.dumps(data)
         db.write_points(data)
     except Exception as e:
         print e
         sys.exit(-1)
 
-
 if __name__ == '__main__':
     cli()
+
